@@ -9,13 +9,11 @@ void tr();
 void awk();
 void uniq();
 void sed();
-void fork_and_run(int read_from_parent[2], int write_to_parent[2],
-                  int funcs);
+void fork_and_run(int pipes[2], int funcs);
 
 int main()
 {
     int p1[2];
-    int p2[2];
 
     if(pipe(p1))
     {
@@ -23,36 +21,15 @@ int main()
         exit(1);
     }
 
-    if(pipe(p2))
-    {
-        perror("pipe2");
-        exit(1);
-    }
-    close(p1[1]);
-    close(p2[0]);
-    dup2(STDIN_FILENO, p1[0]);
-    dup2(STDOUT_FILENO, p2[1]);
-    fork_and_run(p1, p2, 0);
+    fork_and_run(p1, 0);
 }
 
-void fork_and_run(int read_from_parent[2], int write_to_parent[2],
-                  int funcs) {
+void fork_and_run(int pipes[2], int funcs) {
     void (*func_list[])(void) = { sed, tr, awk, sort, uniq };
     int num_funcs = 4;
+    wait(NULL);
     if (funcs >= num_funcs) {
         return;
-    }
-    int read_from_child[2];
-    int write_to_child[2];
-    if(pipe(read_from_child))
-    {
-        perror("Error opening pipe to read from child");
-        exit(1);
-    }
-    if(pipe(write_to_child))
-    {
-        perror("Error opening pipe to write to child");
-        exit(1);
     }
     switch(fork())
     {
@@ -60,28 +37,32 @@ void fork_and_run(int read_from_parent[2], int write_to_parent[2],
             perror("Error forking");
             exit(0);
         case  0: // child process // 0 is read 1 is write
-            dup2(STDOUT_FILENO, write_to_child[1]);
-            dup2(STDIN_FILENO, read_from_parent[0]);
-            close(read_from_parent[1]);
-            close(write_to_parent[0]);
+            close(pipes[0]);
+            dup2(pipes[1], STDOUT_FILENO);
+            close(pipes[1]);
             func_list[funcs]();
         default: // parent process
-            close(read_from_child[1]);
-            close(write_to_child[0]);
-            fork_and_run(write_to_child, read_from_child, ++funcs);
+            close(pipes[1]);
+            if (funcs == num_funcs-4)
+                dup2(pipes[0], STDIN_FILENO);
+            close(pipes[0]);
+            fork_and_run(pipes, ++funcs);
             break;
     }
 }
 
 void uniq() {
+    fprintf(stderr, "uniq");
     execlp("uniq", "uniq", "-c", NULL); 
 }
 
 void cat() {
+    fprintf(stderr, "cat");
     execlp("cat", "cat", "file.txt", NULL);
 }
 
 void sort() {
+    fprintf(stderr, "sort");
     execlp("sort", "sort", NULL);
 }
 
