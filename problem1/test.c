@@ -28,13 +28,17 @@ int main()
         perror("pipe2");
         exit(1);
     }
+    close(p1[1]);
+    close(p2[0]);
+    dup2(STDIN_FILENO, p1[0]);
+    dup2(STDOUT_FILENO, p2[1]);
     fork_and_run(p1, p2, 0);
 }
 
 void fork_and_run(int read_from_parent[2], int write_to_parent[2],
                   int funcs) {
     void (*func_list[])(void) = { sed, tr, awk, sort, uniq };
-    int num_funcs = 5;
+    int num_funcs = 4;
     if (funcs >= num_funcs) {
         return;
     }
@@ -53,15 +57,15 @@ void fork_and_run(int read_from_parent[2], int write_to_parent[2],
     switch(fork())
     {
         case -1:
-            perror("fork error");
+            perror("Error forking");
             exit(0);
         case  0: // child process // 0 is read 1 is write
+            dup2(STDOUT_FILENO, write_to_child[1]);
+            dup2(STDIN_FILENO, read_from_parent[0]);
             close(read_from_parent[1]);
             close(write_to_parent[0]);
             func_list[funcs]();
         default: // parent process
-            dup2(write_to_child[0], STDOUT_FILENO);
-            dup2(read_from_parent[1], STDIN_FILENO);
             close(read_from_child[1]);
             close(write_to_child[0]);
             fork_and_run(write_to_child, read_from_child, ++funcs);
