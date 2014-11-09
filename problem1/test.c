@@ -2,14 +2,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
-void sort(int p1[2], int p2[2]);
-void cat(int p1[2], int p2[2]);
-void tail(int p1[2], int p2[2]);
-void tr(int p1[2], int p2[2]);
-void awk(int p1[2], int p2[2]);
-void uniq(int p1[2], int p2[2]);
-void sed(int p1[2], int p2[2]);
-void fork_and_run(int p1[2], int p2[2], void (*func)(int p1[2], int p2[2]));
+void sort();
+void cat();
+void tail();
+void tr();
+void awk();
+void uniq();
+void sed();
+void fork_and_run(int read_from_parent[2], int write_to_parent[2],
+                  int funcs);
 
 int main()
 {
@@ -27,82 +28,67 @@ int main()
         perror("pipe2");
         exit(1);
     }
-    fork_and_run(p1, p2, cat);
+    fork_and_run(p1, p2, 0);
 }
 
-void fork_and_run(int p1[2], int p2[2], void (*func)(int p1[2], int p2[2])) {
+void fork_and_run(int read_from_parent[2], int write_to_parent[2],
+                  int funcs) {
+    void (*func_list[])(void) = { sed, tr, awk, sort, uniq };
+    int num_funcs = 5;
+    if (funcs >= num_funcs) {
+        return;
+    }
+    int read_from_child[2];
+    int write_to_child[2];
+    if(pipe(read_from_child))
+    {
+        perror("Error opening pipe to read from child");
+        exit(1);
+    }
+    if(pipe(write_to_child))
+    {
+        perror("Error opening pipe to write to child");
+        exit(1);
+    }
     switch(fork())
     {
         case -1:
             perror("fork error");
             exit(0);
-        case  0: // child process
-            func(p1, p2);
+        case  0: // child process // 0 is read 1 is write
+            close(read_from_parent[1]);
+            close(write_to_parent[0]);
+            func_list[funcs]();
         default: // parent process
+            dup2(write_to_child[0], STDOUT_FILENO);
+            dup2(read_from_parent[1], STDIN_FILENO);
+            close(read_from_child[1]);
+            close(write_to_child[0]);
+            fork_and_run(write_to_child, read_from_child, ++funcs);
             break;
     }
 }
 
-//last
-void uniq(int p1[2], int p2[2]) {
-    dup2(p2[0], STDIN_FILENO);
-    close(p2[0]);
-    close(p2[1]);
-    close(p1[0]);
-    close(p1[1]);
+void uniq() {
     execlp("uniq", "uniq", "-c", NULL); 
 }
 
-//first
-void cat(int p1[2], int p2[2]) {
-    fork_and_run(p1, p2, sed);
-    dup2(p1[1], STDOUT_FILENO);
-    close(p1[1]);
-    close(p1[0]);
+void cat() {
     execlp("cat", "cat", "file.txt", NULL);
 }
 
-//mid
-void sort(int p1[2], int p2[2]) {
-    fork_and_run(p1, p2, uniq);
-    dup2(p1[0], STDIN_FILENO);
-    dup2(p2[1], STDOUT_FILENO);
-    close(p2[0]);
-    close(p2[1]);
-    close(p1[0]);
-    close(p1[1]);
+void sort() {
     execlp("sort", "sort", NULL);
 }
 
-void awk(int p1[2], int p2[2]) {
-    fork_and_run(p1, p2, sort);
-    dup2(p1[0], STDIN_FILENO);
-    dup2(p2[1], STDOUT_FILENO);
-    close(p2[0]);
-    close(p2[1]);
-    close(p1[0]);
-    close(p1[1]);
+void awk() {
     execlp("awk", "awk", "{ for(i = 1; i <= NF; i++) { print $i; } }", NULL);
 }
 
-void tr(int p1[2], int p2[2]) {
-    fork_and_run(p1, p2, awk);
-    dup2(p1[0], STDIN_FILENO);
-    dup2(p2[1], STDOUT_FILENO);
-    close(p2[0]);
-    close(p2[1]);
-    close(p1[0]);
-    close(p1[1]);
+void tr() {
     execlp("tr", "tr", "[A-Z]", "[a-z]", NULL);
 }
 
-void sed(int p1[2], int p2[2]) {
-    fork_and_run(p1, p2, tr);
-    dup2(p1[0], STDIN_FILENO);
-    dup2(p2[1], STDOUT_FILENO);
-    close(p2[0]);
-    close(p2[1]);
-    close(p1[0]);
-    close(p1[1]);
+void sed() {
     execlp("sed", "sed", "s/[^a-zA-Z]/ /g", NULL);
 }
