@@ -34,6 +34,7 @@ int main() {
 }
 
 void die(int sig) {
+    fprintf(stderr, "asdf");
     // TODO: kill children
     char fifo_path[500];
     CREATE_SERVER_FIFO_NAME(fifo_path);
@@ -91,7 +92,7 @@ void read_commands(pid_t master) {
             int s = 7;
             write(write_master, &s, sizeof(int));
             write(write_master, "exited", 7);
-            exit(0);
+            break;
         } else if (strstr(command, "cd") != 0) {
             fprintf(stderr, "cd");
             int s = 5;
