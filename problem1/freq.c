@@ -50,7 +50,11 @@ int main(int argc, char *argv[]) { // read is 0 write is 1
             dup2(sed_to_tr[1], STDOUT_FILENO);
             close(sed_to_tr[0]);
             close(sed_to_tr[1]);
-            execlp("sed", "sed", "s/[^a-zA-Z]/ /g", NULL);
+            if (argc > 1) {
+                execlp("sed", "sed", "s/[^a-zA-Z]/ /g", argv[1], NULL);
+            } else {
+                execlp("sed", "sed", "s/[^a-zA-Z]/ /g", NULL);
+            }
         default:
             close(sed_to_tr[1]);
             break;

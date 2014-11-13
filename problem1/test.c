@@ -24,10 +24,22 @@ int main()
     fork_and_run(p1, 0);
 }
 
-void fork_and_run(int pipes[2], int funcs) {
+void fork_and_run(int pipe_in[2], int funcs) {
     void (*func_list[])(void) = { sed, tr, awk, sort, uniq };
     int num_funcs = 4;
-    wait(NULL);
+
+    int new_pipe[2];
+    if(pipe(new_pipe))
+    {
+        perror("pipe1");
+        exit(1);
+    }
+    dup2(new_pipe[0], STDIN_FILENO);
+    if (funcs == num_funcs) {
+        dup2(new_pipe[1], STDOUT_FILENO);
+    }
+
+    //wait(NULL);
     if (funcs >= num_funcs) {
         return;
     }
@@ -37,16 +49,16 @@ void fork_and_run(int pipes[2], int funcs) {
             perror("Error forking");
             exit(0);
         case  0: // child process // 0 is read 1 is write
-            close(pipes[0]);
-            dup2(pipes[1], STDOUT_FILENO);
-            close(pipes[1]);
+            close(new_pipe[0]);
+            dup2(new_pipe[1], STDOUT_FILENO);
+            close(new_pipe[1]);
             func_list[funcs]();
         default: // parent process
-            close(pipes[1]);
+            close(new_pipe[1]);
             if (funcs == num_funcs-4)
-                dup2(pipes[0], STDIN_FILENO);
-            close(pipes[0]);
-            fork_and_run(pipes, ++funcs);
+                dup2(new_pipe[0], STDIN_FILENO);
+            close(new_pipe[0]);
+            fork_and_run(new_pipe, ++funcs);
             break;
     }
 }
