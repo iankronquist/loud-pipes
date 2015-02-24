@@ -1,5 +1,5 @@
 CC=clang
-CFLAGS=  -O0 -Wall -Wextra -g
+CFLAGS=  -O0 -Wall -Wpedantic -Wextra -g
 
 all: pipes
 
